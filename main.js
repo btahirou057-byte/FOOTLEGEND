@@ -6,6 +6,7 @@ import { createPlayers } from './players.js';
 import { createBall } from './ball.js';
 import { setupControls } from './controls.js';
 import { setupMatch } from './match.js';
+import { setupAI } from './ai.js';
 
 // SCENE PRINCIPALE
 const scene = new THREE.Scene();
@@ -80,6 +81,9 @@ const match = setupMatch({
   scene
 });
 
+// INTELLIGENCE DES JOUEURS
+const ai = setupAI({ THREE, players, ball });
+
 // HORLOGE
 const clock = new THREE.Clock();
 
@@ -90,6 +94,7 @@ function animate() {
   const delta = Math.min(clock.getDelta(), 0.05);
 
   controls.update(delta);
+  ai.update(delta);
   match.update(delta);
 
   renderer.render(scene, camera);
