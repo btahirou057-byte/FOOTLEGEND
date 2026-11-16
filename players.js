@@ -1,3 +1,9 @@
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
+
+const MODEL_URL =
+  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Soldier.glb';
+
 export function createPlayers(scene, THREE) {
 
   const home = [];
@@ -148,6 +154,7 @@ export function createPlayers(scene, THREE) {
     return {
       group,
       team,
+      teamColor: jerseyColor,
       number: index + 1,
       role: isGK ? 'Gardien' : 'Joueur',
       speed: isGK ? 3 : 5,
@@ -158,7 +165,10 @@ export function createPlayers(scene, THREE) {
       ring,
       phase: Math.random() * 6,
       isGoalkeeper: isGK,
-      hasBall: false
+      hasBall: false,
+      // vers quel côté le joueur regarde (home attaque vers -Z)
+      facing: team === 'home' ? Math.PI : 0,
+      model: null
     };
   }
 
@@ -173,25 +183,93 @@ export function createPlayers(scene, THREE) {
 
   const all = [...home, ...away];
 
+  // ---------- VRAI MODELE 3D ANIME ----------
+  function attachModel(p, gltf) {
+    const model = SkeletonUtils.clone(gltf.scene);
+    model.scale.setScalar(1.1);
+
+    const tint = new THREE.Color(p.teamColor)
+      .lerp(new THREE.Color(0xffffff), 0.35);
+
+    model.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.frustumCulled = false;
+      const tintOne = m => {
+        const c = m.clone();
+        if (c.color) c.color.copy(tint);
+        return c;
+      };
+      o.material = Array.isArray(o.material)
+        ? o.material.map(tintOne)
+        : tintOne(o.material);
+    });
+
+    // cacher les anciennes pièces (sauf l'anneau)
+    p.group.children.forEach(ch => {
+      if (ch !== p.ring) ch.visible = false;
+    });
+    p.group.add(model);
+
+    const mixer = new THREE.AnimationMixer(model);
+    const find = n => gltf.animations.find(a => a.name === n);
+    const idle = mixer.clipAction(find('Idle'));
+    const run = mixer.clipAction(find('Run'));
+    idle.time = Math.random() * 2;
+    idle.play();
+    run.play();
+    run.setEffectiveWeight(0);
+
+    p.model = model;
+    p.mixer = mixer;
+    p.idle = idle;
+    p.run = run;
+    p.runWeight = 0;
+  }
+
+  new GLTFLoader().load(
+    MODEL_URL,
+    gltf => all.forEach(p => attachModel(p, gltf)),
+    undefined,
+    err => console.warn('Modèle 3D non chargé, joueurs simples gardés', err)
+  );
+
   // ANIMATION
   function animatePlayers(delta) {
     const t = performance.now() * 0.001;
 
     all.forEach(p => {
       const speed = p.velocity.length();
-      const amp = Math.min(speed / 5, 1) * 0.95;
-      const swing = Math.sin(t * (7 + speed * 1.3) + p.phase) * amp;
 
-      if (speed > 0.1) {
-        p.legs[0].rotation.x = swing;
-        p.legs[1].rotation.x = -swing;
-        p.leftArm.rotation.x = -swing * 0.8;
-        p.rightArm.rotation.x = swing * 0.8;
+      if (p.model) {
+        // orientation vers la direction du mouvement
+        if (speed > 0.1) p.facing = Math.atan2(p.velocity.x, p.velocity.z);
+        p.model.rotation.y = p.facing - p.group.rotation.y;
+
+        // fondu entre repos et course
+        const target = speed > 0.1 ? 1 : 0;
+        p.runWeight += (target - p.runWeight) * Math.min(1, delta * 8);
+        p.idle.setEffectiveWeight(1 - p.runWeight);
+        p.run.setEffectiveWeight(p.runWeight);
+        p.run.timeScale = THREE.MathUtils.clamp(speed / 5, 0.6, 1.6);
+        p.mixer.update(delta);
+
       } else {
-        p.legs[0].rotation.x *= 0.8;
-        p.legs[1].rotation.x *= 0.8;
-        p.leftArm.rotation.x *= 0.8;
-        p.rightArm.rotation.x *= 0.8;
+        const amp = Math.min(speed / 5, 1) * 0.95;
+        const swing = Math.sin(t * (7 + speed * 1.3) + p.phase) * amp;
+
+        if (speed > 0.1) {
+          p.legs[0].rotation.x = swing;
+          p.legs[1].rotation.x = -swing;
+          p.leftArm.rotation.x = -swing * 0.8;
+          p.rightArm.rotation.x = swing * 0.8;
+        } else {
+          p.legs[0].rotation.x *= 0.8;
+          p.legs[1].rotation.x *= 0.8;
+          p.leftArm.rotation.x *= 0.8;
+          p.rightArm.rotation.x *= 0.8;
+        }
       }
 
       p.ring.visible = !!p.isControlled || p === api.controlled;
