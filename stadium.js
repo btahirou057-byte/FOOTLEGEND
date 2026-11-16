@@ -110,6 +110,8 @@ export function createStadium(scene, THREE) {
   crowd.colorSpace = THREE.SRGBColorSpace;
   crowd.wrapS = crowd.wrapT = THREE.RepeatWrapping;
   crowd.repeat.set(8, 1);
+  crowd.anisotropy = 8;
+  crowd.minFilter = THREE.LinearMipmapLinearFilter;
   const crowdMat = new THREE.MeshStandardMaterial({ map: crowd, roughness: 1 });
   const concrete = new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: .9 });
   const roofMat = new THREE.MeshStandardMaterial({
@@ -162,4 +164,4 @@ export function createStadium(scene, THREE) {
   group.rotation.y = Math.PI / 2;
   scene.add(group);
   return group;
-    }
+}
