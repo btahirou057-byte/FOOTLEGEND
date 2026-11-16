@@ -1,6 +1,6 @@
 export function createStadium(scene, THREE) {
-  const L = 60; // longueur du terrain (axe X)
-  const W = 40; // largeur du terrain (axe Z)
+  const L = 50; // longueur du terrain
+  const W = 34; // largeur du terrain
   const group = new THREE.Group();
 
   // ---------- TERRAIN (herbe rayée + lignes) ----------
@@ -159,6 +159,7 @@ export function createStadium(scene, THREE) {
     group.add(head);
   });
 
+  group.rotation.y = Math.PI / 2;
   scene.add(group);
   return group;
     }
